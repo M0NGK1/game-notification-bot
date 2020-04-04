@@ -1,1 +1,1 @@
-worker: python Discord Game Info Bot.py
+worker: python DiscordGameInfoBot.py
