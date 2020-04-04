@@ -1,4 +1,4 @@
-import discord, requests, asyncio, json, re, datetime
+import discord, requests, asyncio, json, re, datetime, os
 from bs4 import BeautifulSoup
 app = discord.Client()
 
@@ -88,4 +88,5 @@ async def on_message(message):
                 embed.set_thumbnail(url=logo_url)
                 await message.channel.send(embed=embed)
 
-app.run("Njk1Njk3MTkyNDY3NDMxNDU0.Xod81w.xgNlfal6moLUv3RUQef-L_ziHig")
+access_token = os.environ["BOT_TOKEN"]
+app.run(access_token)
