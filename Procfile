@@ -1,1 +1,1 @@
-worker: python Discord Private Store Bot.py
+worker: python Discord Game Info Bot.py
