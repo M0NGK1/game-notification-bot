@@ -1,4 +1,4 @@
-import discord, requests, asyncio, json, re, datetime, copy
+import discord, requests, asyncio, json, re, datetime, copy, os
 from bs4 import BeautifulSoup
 app = discord.Client()
 
