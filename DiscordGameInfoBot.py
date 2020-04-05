@@ -1,10 +1,55 @@
-import discord, requests, asyncio, json, re, datetime, os
+import discord, requests, asyncio, json, re, datetime, copy
 from bs4 import BeautifulSoup
 app = discord.Client()
 
 lol_data = lol_champions = lol_OPGGnotification = {}
 logo_url = None
+rune_emoji = {"마법": '🟣', "지배": '🔴', "영감": '🔵', "정밀": '🟡', "결의": '🟢'}
+runepage_element_set = {"마법": [3, 3, 3, 3], "지배": [4, 3, 3, 4], "영감": [3, 3, 3, 3], "정밀": [4, 3, 3, 3],"결의": [3, 3, 3, 3]}
+hdr = {'Accept-Language': 'ko_KR,en;q=0.8', 'User-Agent': ('Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.70 Mobile Safari/537.36')}
 
+async def add_rune_embed(embed, soup):
+    nickname = soup.find_all(src=[re.compile("//opgg-static.akamaized.net/images/lol/perk/"),re.compile("//opgg-static.akamaized.net/images/lol/perkStyle/")], class_='tip')
+    rune_count = line = 0
+    page_check = True
+    for rune in nickname:
+        if rune.attrs.get('alt') is None:
+            runename = rune.attrs.get('title').split('</b><br><span>')
+            runename = runename[0].replace("<b style='color: #ffc659'>", "")
+            emoji = rune_emoji[runename]
+            line = rune_count = 0
+            if page_check:
+                page_line = runepage_element_set[runename]
+                page_check = False
+                runename = "**첫번째 룬 ("+runename+")**\n"
+            else:
+                page_line = copy.deepcopy(runepage_element_set[runename])
+                del page_line[0]
+                runename = "**두번째 룬 (" + runename + ")**\n"
+                page_check = True
+            if page_line[line] == 4:
+                rune_text = '> '
+            else:
+                rune_text = '> ...'
+            continue
+        rune_count += 1
+        if rune.attrs['src'].count('e_grayscale') == 0:
+            rune_text = rune_text + emoji + " "
+        else:
+            rune_text = rune_text + "⚪" + " "
+        if (rune_count == page_line[line]):
+            if len(page_line) != line + 1:
+                line += 1
+            else:
+                embed.add_field(name="-", value=runename+rune_text, inline=True)
+                if page_check is True:
+                    break
+            rune_count = 0
+            rune_text = rune_text + "\n> "
+
+            if page_line[line] != 4:
+                rune_text = rune_text+'...'
+    return embed
 async def league_of_legends_info():
     await app.wait_until_ready()
     global lol_OPGGnotification, lol_champions, logo_url
@@ -19,7 +64,7 @@ async def league_of_legends_info():
                 lol_OPGGnotification[m.id] = m.activity.timestamps.get("start")
                 chm = m.activity.large_image_text.replace(" ","")
                 url = "https://www.op.gg/champion/" + lol_champions[chm] + "/statistics/"
-                html = requests.get(url).text
+                html = requests.get(url, headers=hdr).text
                 soup = BeautifulSoup(html, 'html.parser')
                 url_list = soup.find_all(src=re.compile("opgg-static.akamaized.net/images/lol/champion/"))
                 icon_url = "https:"+url_list[0].attrs["src"]
@@ -38,7 +83,7 @@ async def get_datas():
     global logo_url
     while not app.is_closed():
         url = 'https://op.gg'
-        html = requests.get(url).text
+        html = requests.get(url, headers=hdr).text
         soup = BeautifulSoup(html, 'html.parser')
         url_list = soup.find_all(src=re.compile("https://attach.s.op.gg/logo/"))
         logo_url = url_list[0].attrs["src"]
@@ -49,7 +94,7 @@ async def on_ready():
     game=discord.Game(name="실시간 게임 알림 봇")
     await app.change_presence(status=discord.Status.online, activity=game)
     url = "http://ddragon.leagueoflegends.com/cdn/10.7.1/data/ko_KR/champion.json"
-    data = requests.get(url).text
+    data = requests.get(url, headers=hdr).text
     global lol_champions, lol_data
     lol_data = json.loads(data)
     for chm in lol_data.get("data"):
@@ -73,7 +118,7 @@ async def on_message(message):
             if chm in lol_champions:
                 m = message.author
                 url = "https://www.op.gg/champion/" + lol_champions[chm] + "/statistics/"
-                html = requests.get(url).text
+                html = requests.get(url, headers=hdr).text
                 soup = BeautifulSoup(html, 'html.parser')
                 url_list = soup.find_all(src=re.compile("opgg-static.akamaized.net/images/lol/champion/"))
                 icon_url = "https:" + url_list[0].attrs["src"]
@@ -82,6 +127,7 @@ async def on_message(message):
                 embed.set_thumbnail(url=logo_url)
                 embed.timestamp = datetime.datetime.utcnow()
                 embed.set_footer(text="Game Notification For Gamer")
+                embed = await add_rune_embed(embed, soup)
                 await message.channel.send(embed=embed)
             else:
                 embed = discord.Embed(title="존재하지 않는 챔피언의 이름입니다.",description="입력하신 챔피언 이름을 확인 후 명령어를 재입력하여 주세요.",color=0xff8080)
