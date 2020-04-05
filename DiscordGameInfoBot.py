@@ -6,7 +6,9 @@ lol_data = lol_champions = lol_OPGGnotification = {}
 logo_url = None
 rune_emoji = {"마법": '🟣', "지배": '🔴', "영감": '🔵', "정밀": '🟡', "결의": '🟢'}
 runepage_element_set = {"마법": [3, 3, 3, 3], "지배": [4, 3, 3, 4], "영감": [3, 3, 3, 3], "정밀": [4, 3, 3, 3],"결의": [3, 3, 3, 3]}
-hdr = {'Accept-Language': 'ko_KR,en;q=0.8', 'User-Agent': ('Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.70 Mobile Safari/537.36')}
+rank_emoji = {None: '❌', 'Iron': '⬛', 'Bronze': '🟫', 'Silver': '⬜', 'Gold': '🟨', 'Platinum': '🟩','Diamond': '🟦', 'Master': '🟪', 'Grandmaster': '🟥', 'Challenger': '👑'}
+state_emoji = {'패배': '🟥', '승리': '🟦', '다시하기': '⬜'}
+hdr = {'Accept-Language': 'ko_KR,en;q=0.8', 'User-Agent': ('Chrome/78.0.3904.70')}
 
 async def add_rune_embed(embed, soup):
     nickname = soup.find_all(src=[re.compile("//opgg-static.akamaized.net/images/lol/perk/"),re.compile("//opgg-static.akamaized.net/images/lol/perkStyle/")], class_='tip')
@@ -130,9 +132,75 @@ async def on_message(message):
                 embed = await add_rune_embed(embed, soup)
                 await message.channel.send(embed=embed)
             else:
-                embed = discord.Embed(title="존재하지 않는 챔피언의 이름입니다.",description="입력하신 챔피언 이름을 확인 후 명령어를 재입력하여 주세요.",color=0xff8080)
-                embed.set_thumbnail(url=logo_url)
-                await message.channel.send(embed=embed)
+                url = 'https://www.op.gg/summoner/userName=' + chm
+                html = requests.get(url, headers=hdr).text
+                soup = BeautifulSoup(html, 'html.parser')
+                SummonerName = soup.select('div[class=Information] > span[class=Name]')
+                if SummonerName != []:
+                    profile_link = "https:"+soup.find(src=re.compile("//opgg-static.akamaized.net/images/profile_icons/")).attrs["src"]
+                    SummonerName =SummonerName[0].text
+                    solorank_info = soup.select("div[class=TierRank]")
+                    freerank_info = soup.select("div[class=sub-tier__rank-tier]")
+
+                    if len(solorank_info):
+                        solorank_info = solorank_info[0].text.strip()
+                        sololp = "_(" + soup.select('span[class=LeaguePoints]')[0].text.strip().replace(" ", "") + ")_"
+                        if solorank_info.count(" "):
+                            solorank = solorank_info.split(" ")[0]
+                        else:
+                            solorank = solorank_info
+                    else:
+                        solorank = None
+                        solorank_info = "Unranked"
+                        sololp = ""
+                    if len(freerank_info):
+                        freerank_info = freerank_info[0].text.strip()
+                        freelp = "_(" + \
+                                 soup.select('div[class=sub-tier__league-point]')[0].text.strip().replace(" ", "").split(
+                                     "/")[0] + ")_"
+                        if freerank_info.count(" "):
+                            freerank = freerank_info.split(" ")[0]
+                        else:
+                            freerank = freerank_info
+                    else:
+                        freerank = None
+                        freerank_info = "Unranked"
+                        freelp = ""
+                    GameResult = []
+                    KDA = []
+                    Champion = []
+                    GameType = []
+                    for result in soup.find_all(class_="GameType"):
+                        GameType.append(result.text.strip())
+                    for result in soup.find_all(class_="GameResult"):
+                        GameResult.append(result.text.strip())
+                    for result in soup.select("div[class=GameItemList] div[class=KDA] div[class=KDA]"):
+                        KDA.append(result.text.replace("\n", "").replace("\t", ""))
+                    for result in soup.select("div[class=GameItemList] div[class=ChampionName] a"):
+                        Champion.append(result.text.strip())
+                    embed = discord.Embed(description=SummonerName+"님의 전적을 OP.GG에서 검색하였습니다. 더 자세한 정보를 원하신다면 위의 "+SummonerName+"님의 전적을 눌러 확인하여 주세요!",color=0x0080ff)
+                    embed.set_author(name=SummonerName+"님의 전적",icon_url=profile_link, url=url)
+                    embed.add_field(name="-", value="솔로 랭크 _(SoloRank)_\n"+rank_emoji[solorank]+ " **" + solorank_info + "**" + sololp, inline=True)
+                    embed.add_field(name="-", value="자유 랭크 _(FreeRank)_\n" + rank_emoji[freerank] + " **" + freerank_info + "**" + freelp, inline=True)
+                    if len(GameResult) < 5:
+                        max = len(GameResult)
+                    else:
+                        max = 5
+                    text = "⚔ **최근 진행한 경기 전적**(max)"
+                    if max == 0:
+                        text = text+"\n_최근 진행한 경기가 없습니다._"
+                    else:
+                        for i in range(max):
+                            text = text+"\n"+state_emoji[GameResult[i]] +" "+ GameType[i] + " | " + Champion[i]+" "+ KDA[i].replace(" ", "")
+                    embed.add_field(name="-",value=text,inline=False)
+                    embed.set_thumbnail(url=logo_url)
+                    embed.timestamp = datetime.datetime.utcnow()
+                    embed.set_footer(text="Game Notification For Gamer")
+                    await message.channel.send(embed=embed)
+                else:
+                    embed = discord.Embed(title="존재하지 않는 챔피언 혹은 소환사의 이름입니다.",description="입력하신 이름을 확인 후 명령어를 재입력하여 주세요.",color=0xff8080)
+                    embed.set_thumbnail(url=logo_url)
+                    await message.channel.send(embed=embed)
 
 access_token = os.environ["BOT_TOKEN"]
 app.run(access_token)
