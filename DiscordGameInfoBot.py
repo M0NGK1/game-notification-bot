@@ -186,7 +186,7 @@ async def on_message(message):
                         max = len(GameResult)
                     else:
                         max = 5
-                    text = "⚔ **최근 진행한 경기 전적**(max)"
+                    text = "⚔ **최근 진행한 경기 전적**("+str(max)+")"
                     if max == 0:
                         text = text+"\n_최근 진행한 경기가 없습니다._"
                     else:
